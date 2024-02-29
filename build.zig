@@ -20,6 +20,11 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    const xcb = b.dependency("xcb", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const phantom = b.dependency("phantom", .{
         .target = target,
         .optimize = optimize,
@@ -29,6 +34,10 @@ pub fn build(b: *std.Build) !void {
             .{
                 .name = "vizops",
                 .module = vizops.module("vizops"),
+            },
+            .{
+                .name = "xcb",
+                .module = xcb.module("xcb"),
             },
         }, b.pathFromRoot("src"), b.allocator),
     });
@@ -43,6 +52,10 @@ pub fn build(b: *std.Build) !void {
             .{
                 .name = "vizops",
                 .module = vizops.module("vizops"),
+            },
+            .{
+                .name = "xcb",
+                .module = xcb.module("xcb"),
             },
         },
     });
