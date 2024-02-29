@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) !void {
     const no_docs = b.option(bool, "no-docs", "skip installing documentation") orelse false;
     const no_tests = b.option(bool, "no-tests", "skip generating tests") orelse false;
     const scene_backend = b.option(Phantom.SceneBackendType, "scene-backend", "The scene backend to use for the example") orelse .headless;
+    const use_system_xcb = b.systemIntegrationOption("xcb", .{ .default = false });
 
     const vizops = b.dependency("vizops", .{
         .target = target,
@@ -70,9 +71,18 @@ pub fn build(b: *std.Build) !void {
         },
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
     exe_example.root_module.addImport("phantom", phantom.module("phantom"));
     exe_example.root_module.addImport("options", exe_options.createModule());
+    exe_example.root_module.addImport("vizops", vizops.module("vizops"));
+
+    if (use_system_xcb) {
+        exe_example.linkSystemLibrary("xcb");
+    } else {
+        exe_example.linkLibrary(xcb.artifact("xcb"));
+    }
+
     b.installArtifact(exe_example);
 
     if (!no_tests) {

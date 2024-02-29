@@ -2,20 +2,26 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const phantom = @import("phantom");
 const Output = @import("output.zig");
+const xcb = @import("xcb");
 const Self = @This();
 
 allocator: Allocator,
 kind: phantom.display.Base.Kind,
+connection: *xcb.Connection,
+setup: *const xcb.xproto.Setup,
 
-pub fn init(alloc: Allocator, kind: phantom.display.Base.Kind) Self {
+pub fn init(alloc: Allocator, kind: phantom.display.Base.Kind) !Self {
+    const conn = try xcb.Connection.connect(null, null);
     return .{
         .allocator = alloc,
         .kind = kind,
+        .connection = conn,
+        .setup = conn.getSetup(),
     };
 }
 
 pub fn deinit(self: *Self) void {
-    _ = self;
+    self.connection.disconnect();
 }
 
 pub fn display(self: *Self) phantom.display.Base {
