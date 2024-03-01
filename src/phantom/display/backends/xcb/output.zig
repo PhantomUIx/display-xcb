@@ -3,12 +3,14 @@ const vizops = @import("vizops");
 const phantom = @import("phantom");
 const Display = @import("display.zig");
 const Surface = @import("surface.zig");
+const xcb = @import("xcb");
 const Self = @This();
 
 base: phantom.display.Output,
 display: *Display,
+id: xcb.xproto.ATOM,
 
-pub fn new(display: *Display) !*Self {
+pub fn new(display: *Display, id: xcb.xproto.ATOM) !*Self {
     const self = try display.allocator.create(Self);
     errdefer display.allocator.destroy(self);
 
@@ -26,6 +28,7 @@ pub fn new(display: *Display) !*Self {
             .type = @typeName(Self),
         },
         .display = display,
+        .id = id,
     };
     return self;
 }

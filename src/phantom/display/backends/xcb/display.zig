@@ -9,14 +9,17 @@ allocator: Allocator,
 kind: phantom.display.Base.Kind,
 connection: *xcb.Connection,
 setup: *const xcb.xproto.Setup,
+screenId: c_int,
 
 pub fn init(alloc: Allocator, kind: phantom.display.Base.Kind) !Self {
-    const conn = try xcb.Connection.connect(null, null);
+    var screenId: c_int = 0;
+    const conn = try xcb.Connection.connect(null, &screenId);
     return .{
         .allocator = alloc,
         .kind = kind,
         .connection = conn,
         .setup = conn.getSetup(),
+        .screenId = screenId,
     };
 }
 
@@ -35,11 +38,26 @@ pub fn display(self: *Self) phantom.display.Base {
     };
 }
 
+fn getXScreen(self: *Self) !*const xcb.xproto.SCREEN {
+    var iter = self.setup.roots_iterator();
+    var i: usize = 0;
+    while (iter.next()) |screen| : (i += 1) {
+        if (i == self.screenId) return screen;
+    }
+    return error.ScreenNotFound;
+}
+
 fn impl_outputs(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Output) {
     const self: *Self = @ptrCast(@alignCast(ctx));
     var outputs = std.ArrayList(*phantom.display.Output).init(self.allocator);
     errdefer outputs.deinit();
 
-    // TODO: implement me
+    const xscreen = try self.getXScreen();
+    const monitors = try xcb.randr.GetMonitorsReply.getMonitors(self.connection, xscreen.root, 0).reply(self.connection);
+    var monitorsIter = monitors.monitors_iterator();
+
+    while (monitorsIter.next()) |monitor| {
+        try outputs.append(&(try Output.new(self, monitor.name)).base);
+    }
     return outputs;
 }
