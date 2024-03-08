@@ -57,8 +57,7 @@ fn impl_outputs(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Output)
     var monitorsIter = monitors.monitorsIterator();
 
     while (monitorsIter.next()) |monitor| {
-        var outputsIter = monitor.outputsIterator();
-        while (outputsIter.next()) |output| {
+        for (monitor.outputs()) |output| {
             std.debug.print("{}\n", .{output});
             try outputs.append(&(try Output.new(self, monitor.name)).base);
         }
