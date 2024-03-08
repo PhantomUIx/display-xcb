@@ -53,7 +53,7 @@ fn impl_outputs(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Output)
     errdefer outputs.deinit();
 
     const xscreen = try self.getXScreen();
-    const monitors = try xcb.randr.getMonitors(@ptrCast(@alignCast(self.connection)), xscreen.root, 0).reply(@ptrCast(@alignCast(self.connection)));
+    const monitors = try xcb.randr.getMonitors(self.connection, xscreen.root, 0).reply(self.connection);
     var monitorsIter = monitors.monitorsIterator();
 
     while (monitorsIter.next()) |monitor| {

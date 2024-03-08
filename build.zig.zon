@@ -12,8 +12,8 @@
             .hash = "1220813b3d22d110b409ec8619fc1da2bc2ba2e71eb37b6a921ad228b485135793be",
         },
         .xcb = .{
-            .url = "https://github.com/MidstallSoftware/xcb.zig/archive/81d96352002b88dabd36d14544479cd86c0f370a.tar.gz",
-            .hash = "1220a7b767d4f7362a95722d1808b8f083a91896ae65c904fc102a255795de80e80e",
+            .url = "https://github.com/MidstallSoftware/xcb.zig/archive/f22397e0584cd3359b1aa8ff862a7baca6f122e3.tar.gz",
+            .hash = "122075e699b270a850f3c39b24cc729156393c0a16656fc261efce246adf1b8a8da1",
         },
     },
 }
