@@ -39,7 +39,7 @@ pub fn display(self: *Self) phantom.display.Base {
 }
 
 fn getXScreen(self: *Self) !*const xcb.xproto.SCREEN {
-    var iter = self.setup.roots_iterator();
+    var iter = self.setup.rootsIterator();
     var i: usize = 0;
     while (iter.next()) |screen| : (i += 1) {
         if (i == self.screenId) return screen;
@@ -53,11 +53,15 @@ fn impl_outputs(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Output)
     errdefer outputs.deinit();
 
     const xscreen = try self.getXScreen();
-    const monitors = try xcb.randr.GetMonitorsReply.getMonitors(self.connection, xscreen.root, 0).reply(self.connection);
-    var monitorsIter = monitors.monitors_iterator();
+    const monitors = try xcb.randr.getMonitors(@ptrCast(@alignCast(self.connection)), xscreen.root, 0).reply(@ptrCast(@alignCast(self.connection)));
+    var monitorsIter = monitors.monitorsIterator();
 
     while (monitorsIter.next()) |monitor| {
-        try outputs.append(&(try Output.new(self, monitor.name)).base);
+        var outputsIter = monitor.outputsIterator();
+        while (outputsIter.next()) |output| {
+            std.debug.print("{}\n", .{output});
+            try outputs.append(&(try Output.new(self, monitor.name)).base);
+        }
     }
     return outputs;
 }
