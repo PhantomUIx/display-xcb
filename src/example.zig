@@ -18,7 +18,7 @@ pub fn main() !void {
 
     const output = blk: {
         for (outputs.items) |value| {
-            if ((value.info() catch continue).enable) break :blk value;
+            if ((try value.info()).enable) break :blk value;
         }
         @panic("Could not find an output");
     };

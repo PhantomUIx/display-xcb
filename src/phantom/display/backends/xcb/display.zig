@@ -38,7 +38,7 @@ pub fn display(self: *Self) phantom.display.Base {
     };
 }
 
-fn getXScreen(self: *Self) !*const xcb.xproto.SCREEN {
+pub fn getXScreen(self: *Self) !*const xcb.xproto.SCREEN {
     var iter = self.setup.rootsIterator();
     var i: usize = 0;
     while (iter.next()) |screen| : (i += 1) {
@@ -58,8 +58,7 @@ fn impl_outputs(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Output)
 
     while (monitorsIter.next()) |monitor| {
         for (monitor.outputs()) |output| {
-            std.debug.print("{}\n", .{output});
-            try outputs.append(&(try Output.new(self, monitor.name)).base);
+            try outputs.append(&(try Output.new(self, output)).base);
         }
     }
     return outputs;

@@ -1,17 +1,17 @@
 const std = @import("std");
 const phantom = @import("phantom");
 const Output = @import("output.zig");
+const xcb = @import("xcb");
 const Self = @This();
 
 base: phantom.display.Surface,
 output: *Output,
 scene: ?*phantom.scene.Base,
+id: xcb.xproto.WINDOW,
 
-pub fn new(output: *Output, info: phantom.display.Surface.Info) !*Self {
+pub fn new(output: *Output, id: xcb.xproto.WINDOW) !*Self {
     const self = try output.display.allocator.create(Self);
     errdefer output.display.allocator.destroy(self);
-
-    _ = info;
 
     self.* = .{
         .base = .{
@@ -29,6 +29,7 @@ pub fn new(output: *Output, info: phantom.display.Surface.Info) !*Self {
         },
         .output = output,
         .scene = null,
+        .id = id,
     };
     return self;
 }
