@@ -2,6 +2,7 @@ const std = @import("std");
 const phantom = @import("phantom");
 const Display = @import("display.zig");
 const Output = @import("output.zig");
+const Fb = @import("../../../painting/fb/xcb-pixmap.zig");
 const xcb = @import("xcb");
 const Self = @This();
 
@@ -9,6 +10,11 @@ base: phantom.display.Surface,
 output: *Output,
 scene: ?*phantom.scene.Base,
 id: xcb.xproto.WINDOW,
+shmseg: ?xcb.shm.SEG,
+fd: ?std.os.fd_t,
+shmid: ?usize,
+shmaddr: ?usize,
+fb: ?*phantom.painting.fb.Base,
 
 pub fn new(output: *Output, id: xcb.xproto.WINDOW) !*Self {
     const self = try output.display.allocator.create(Self);
@@ -31,6 +37,11 @@ pub fn new(output: *Output, id: xcb.xproto.WINDOW) !*Self {
         .output = output,
         .scene = null,
         .id = id,
+        .shmseg = null,
+        .fd = null,
+        .shmid = null,
+        .shmaddr = null,
+        .fb = null,
     };
     return self;
 }
@@ -52,7 +63,9 @@ fn impl_info(ctx: *anyopaque) anyerror!phantom.display.Surface.Info {
 
     const xscreen = try self.output.display.getXScreen();
     const visual = try self.output.display.getVisualInfo(xscreen.root_depth, attrs.visual);
+
     return .{
+        .title = try self.output.display.getProperty(self.id, "_UTF8_STRING", "_NET_WM_NAME") orelse try self.output.display.getProperty(self.id, "STRING", "WM_NAME"),
         .colorFormat = Display.getColorFormatFromVisual(visual),
         .size = .{ .value = .{ geom.width, geom.height } },
         .states = if (attrs.map_state == 2) &.{.mapped} else &.{},
@@ -72,7 +85,48 @@ fn impl_create_scene(ctx: *anyopaque, backendType: phantom.scene.BackendType) an
 
     if (self.scene) |scene| return scene;
 
-    _ = backendType;
-    // TODO: based on backendType or not, you may want to select what kind of scene to initialize.
-    return error.NotImplemented;
+    const info = try self.base.info();
+    const outputInfo = try self.output.base.info();
+    const xscreen = try self.output.display.getXScreen();
+
+    self.shmseg = .{ .value = try self.output.display.connection.generateId() };
+    self.shmid = std.os.linux.syscall3(.shmget, 0, @reduce(.Mul, info.size.value) * @divExact(info.colorFormat.?.width(), 8), 0x200 | 0o0777);
+    switch (std.os.linux.getErrno(self.shmid.?)) {
+        .SUCCESS => {},
+        else => |e| return std.os.unexpectedErrno(e),
+    }
+
+    self.shmaddr = std.os.linux.syscall3(.shmat, @bitCast(self.shmid.?), 0, 0);
+    switch (std.os.linux.getErrno(self.shmaddr.?)) {
+        .SUCCESS => {},
+        else => |e| return std.os.unexpectedErrno(e),
+    }
+
+    if (self.output.display.connection.requestCheck(xcb.shm.attachFd(self.output.display.connection, self.shmseg.?, @intCast(self.shmid.?), 0))) |err| {
+        _ = err;
+        return error.GenericError;
+    }
+
+    switch (std.os.linux.getErrno(std.os.linux.syscall3(.shmctl, @bitCast(self.shmid.?), 0, 0))) {
+        .SUCCESS => {},
+        else => |e| return std.os.unexpectedErrno(e),
+    }
+
+    self.fb = try Fb.create(self.output.display, try phantom.painting.fb.MemoryFrameBuffer.create(self.output.display.allocator, .{
+        .res = info.size,
+        .colorspace = .sRGB,
+        .colorFormat = info.colorFormat orelse outputInfo.colorFormat,
+    }, @ptrFromInt(self.shmaddr.?)), .{ .window = self.id }, xscreen.root_depth, self.shmseg.?);
+
+    self.scene = try phantom.scene.createBackend(backendType, .{
+        .allocator = self.output.display.allocator,
+        .frame_info = phantom.scene.Node.FrameInfo.init(.{
+            .res = info.size,
+            .scale = outputInfo.scale,
+            .physicalSize = outputInfo.size.phys,
+            .colorFormat = info.colorFormat orelse outputInfo.colorFormat,
+        }),
+        .target = .{ .fb = self.fb.? },
+    });
+    return self.scene.?;
 }

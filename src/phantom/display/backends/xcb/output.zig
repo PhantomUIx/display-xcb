@@ -66,8 +66,39 @@ fn impl_create_surface(ctx: *anyopaque, kind: phantom.display.Surface.Kind, info
         return error.NotSupported;
     }
 
-    _ = info;
-    return error.NotImplemented;
+    const xscreen = try self.display.getXScreen();
+    const visual = if (info.colorFormat) |cf| try self.display.findVisualForColorFormat(cf) else .{ xscreen.root_depth, xscreen.root_visual };
+
+    const wid = xcb.xproto.WINDOW{ .value = try self.display.connection.generateId() };
+    if (self.display.connection.requestCheck(xcb.xproto.createWindow(
+        self.display.connection,
+        visual[0],
+        wid,
+        xscreen.root,
+        0,
+        0,
+        @intCast(info.size.value[0]),
+        @intCast(info.size.value[1]),
+        0,
+        1,
+        visual[1],
+        1 << 1 | 1 << 11,
+        &[_:0]u32{ xscreen.black_pixel, 1 << 15 },
+    ))) |err| {
+        _ = err;
+        return error.GenericError;
+    }
+
+    if (self.display.connection.requestCheck(xcb.xproto.mapWindow(self.display.connection, wid))) |err| {
+        _ = err;
+        return error.GenericError;
+    }
+
+    try self.display.connection.flush();
+
+    const surf = try Surface.new(self, wid);
+    errdefer surf.base.deinit();
+    return &surf.base;
 }
 
 fn impl_info(ctx: *anyopaque) anyerror!phantom.display.Output.Info {
