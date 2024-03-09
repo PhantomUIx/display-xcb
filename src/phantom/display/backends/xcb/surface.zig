@@ -1,5 +1,6 @@
 const std = @import("std");
 const phantom = @import("phantom");
+const Display = @import("display.zig");
 const Output = @import("output.zig");
 const xcb = @import("xcb");
 const Self = @This();
@@ -46,8 +47,16 @@ fn impl_destroy(ctx: *anyopaque) anyerror!void {
 
 fn impl_info(ctx: *anyopaque) anyerror!phantom.display.Surface.Info {
     const self: *Self = @ptrCast(@alignCast(ctx));
-    _ = self;
-    return error.NotImplemented;
+    const attrs = try xcb.xproto.getWindowAttributes(self.output.display.connection, self.id).reply(self.output.display.connection);
+    const geom = try xcb.xproto.getGeometry(self.output.display.connection, .{ .window = self.id }).reply(self.output.display.connection);
+
+    const xscreen = try self.output.display.getXScreen();
+    const visual = try self.output.display.getVisualInfo(xscreen.root_depth, attrs.visual);
+    return .{
+        .colorFormat = Display.getColorFormatFromVisual(visual),
+        .size = .{ .value = .{ geom.width, geom.height } },
+        .states = if (attrs.map_state == 2) &.{.mapped} else &.{},
+    };
 }
 
 fn impl_update_info(ctx: *anyopaque, info: phantom.display.Surface.Info, fields: []std.meta.FieldEnum(phantom.display.Surface.Info)) anyerror!void {

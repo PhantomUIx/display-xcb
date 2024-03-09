@@ -23,6 +23,8 @@ pub fn main() !void {
         @panic("Could not find an output");
     };
 
+    std.debug.print("{}\n", .{output});
+
     const surface = output.createSurface(.output, .{
         .size = .{
             .value = .{ 1024, 768 },

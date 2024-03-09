@@ -40,12 +40,21 @@ fn impl_surfaces(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Surfac
     var surfaces = std.ArrayList(*phantom.display.Surface).init(self.display.allocator);
     errdefer surfaces.deinit();
 
+    const outputInfo = try xcb.randr.getOutputInfo(self.display.connection, self.id, 0).reply(self.display.connection);
+    const crtcInfo = try xcb.randr.getCrtcInfo(self.display.connection, outputInfo.crtc, 0).reply(self.display.connection);
+
     const xscreen = try self.display.getXScreen();
     const tree = try xcb.xproto.queryTree(self.display.connection, xscreen.root).reply(self.display.connection);
     for (tree.children()) |child| {
-        const surf = try Surface.new(self, child);
-        errdefer surf.base.deinit();
-        try surfaces.append(&surf.base);
+        const geom = try xcb.xproto.getGeometry(self.display.connection, .{ .window = child }).reply(self.display.connection);
+
+        if (geom.x >= crtcInfo.x and (geom.x - @as(i16, @intCast(crtcInfo.width))) <= crtcInfo.width) {
+            if (geom.y >= crtcInfo.y and (geom.y - @as(i16, @intCast(crtcInfo.height))) <= crtcInfo.height) {
+                const surf = try Surface.new(self, child);
+                errdefer surf.base.deinit();
+                try surfaces.append(&surf.base);
+            }
+        }
     }
     return surfaces;
 }
@@ -53,8 +62,10 @@ fn impl_surfaces(ctx: *anyopaque) anyerror!std.ArrayList(*phantom.display.Surfac
 fn impl_create_surface(ctx: *anyopaque, kind: phantom.display.Surface.Kind, info: phantom.display.Surface.Info) anyerror!*phantom.display.Surface {
     const self: *Self = @ptrCast(@alignCast(ctx));
 
-    _ = self;
-    _ = kind;
+    if (kind == .output and self.display.kind == .client) {
+        return error.NotSupported;
+    }
+
     _ = info;
     return error.NotImplemented;
 }
@@ -62,17 +73,30 @@ fn impl_create_surface(ctx: *anyopaque, kind: phantom.display.Surface.Kind, info
 fn impl_info(ctx: *anyopaque) anyerror!phantom.display.Output.Info {
     const self: *Self = @ptrCast(@alignCast(ctx));
 
+    const xscreen = try self.display.getXScreen();
+
     const outputInfo = try xcb.randr.getOutputInfo(self.display.connection, self.id, 0).reply(self.display.connection);
     const crtcInfo = try xcb.randr.getCrtcInfo(self.display.connection, outputInfo.crtc, 0).reply(self.display.connection);
 
+    const modeInfo = blk: {
+        const screenRes = try xcb.randr.getScreenResources(self.display.connection, xscreen.root).reply(self.display.connection);
+        var modeIterator = screenRes.modesIterator();
+        while (modeIterator.next()) |mode| {
+            if (mode.id == crtcInfo.mode.value) break :blk mode;
+        }
+        return error.ModeNotFound;
+    };
+
+    const visual = try self.display.getVisualInfo(xscreen.root_depth, xscreen.root_visual);
+
     return .{
-        .enable = true,
+        .enable = outputInfo.connection == 0,
         .size = .{
             .phys = .{ .value = .{ @floatFromInt(outputInfo.mm_width), @floatFromInt(outputInfo.mm_height) } },
-            .res = .{ .value = .{ crtcInfo.width, crtcInfo.height } },
+            .res = .{ .value = .{ modeInfo.width, modeInfo.height } },
         },
         .name = outputInfo.name(),
-        .colorFormat = .{ .rgba = @splat(8) },
+        .colorFormat = Display.getColorFormatFromVisual(visual),
         .scale = self.scale,
     };
 }
