@@ -116,7 +116,7 @@ pub fn getColorFormatFromVisual(visual: *const xcb.xproto.VISUALTYPE) vizops.col
     return .{ .bgr = .{ blue[1], green[1], red[1] } };
 }
 
-pub fn getProperty(self: *Self, win: xcb.xproto.WINDOW, typeName: []const c_char, name: []const c_char) !?[]const u8 {
+pub fn getProperty(self: *Self, win: xcb.xproto.WINDOW, typeName: []const u8, name: []const u8) !?[]const u8 {
     const typeAtom = try xcb.xproto.internAtom(self.connection, @intFromBool(false), @intCast(typeName.len), typeName.ptr).reply(self.connection);
     const nameAtom = try xcb.xproto.internAtom(self.connection, @intFromBool(false), @intCast(name.len), name.ptr).reply(self.connection);
 
